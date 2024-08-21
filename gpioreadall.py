@@ -67,17 +67,21 @@ def pin_state(g):
         else:
             D[p] = v
 
-    if(D['fsel'] < 2): # i.e. IN or OUT
-        name = 'GPIO{}'.format(g)
+    if('fsel' in D):
+        if(D['fsel'] < 2): # i.e. IN or OUT
+            name = 'GPIO{}'.format(g)
+        else:
+            name = D['func']
+
+        mode = MODES[D['fsel']]
+        if(D['fsel'] == 0 and 'pull' in D):
+            if(D['pull'] == 'UP'):
+                mode = 'IN ^'
+            if(D['pull'] == 'DOWN'):
+                mode = 'IN v'
     else:
         name = D['func']
-
-    mode = MODES[D['fsel']]
-    if(D['fsel'] == 0 and 'pull' in D):
-        if(D['pull'] == 'UP'):
-            mode = 'IN ^'
-        if(D['pull'] == 'DOWN'):
-            mode = 'IN v'
+        mode = ''
 
     return name, mode, D['level']
 

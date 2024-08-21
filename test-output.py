@@ -17,7 +17,7 @@ except NotImplementedError:
 # To test your gpio output to control a relay...
 #
 # Edit config.py and set the following in that file to match your
-# hardware setup: GPIO_HEAT
+# hardware setup: gpio_heat, gpio_heat_invert
 #
 # then run this script...
 # 
@@ -31,14 +31,17 @@ except NotImplementedError:
 
 heater = digitalio.DigitalInOut(config.gpio_heat)
 heater.direction = digitalio.Direction.OUTPUT
+off = config.gpio_heat_invert
+on = not off
 
 print("\nboard: %s" % (board.board_id))
 print("heater configured as config.gpio_heat = %s BCM pin\n" % (config.gpio_heat))
+print("heater output pin configured as invert = %r\n" % (config.gpio_heat_invert))
 
 while True:
-    heater.value = True
+    heater.value = on
     print("%s heater on" % datetime.datetime.now())
     time.sleep(5)
-    heater.value = False
+    heater.value = off
     print("%s heater off" % datetime.datetime.now())
     time.sleep(5)
