@@ -274,6 +274,7 @@ function enterEditMode()
     graph.profile.draggable = true;
     graph.plot = $.plot("#graph_container", [ graph.profile, graph.live ], getOptions());
     updateProfileTable();
+    toggleTable();
 }
 
 function leaveEditMode()
