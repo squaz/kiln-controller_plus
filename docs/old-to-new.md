@@ -55,6 +55,7 @@ pip install -r ./requirements.txt
   spi_miso = board.D17
   spi_mosi = board.D10 #this one is not actually used, so set it or not
   gpio_heat = board.D23
+  gpio_heat_invert = False
 ```
 
   5. test the thermocouple board and thermocouple

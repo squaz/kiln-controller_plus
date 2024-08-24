@@ -84,11 +84,12 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 
 try:
     import board
-    spi_sclk  = board.D17 #spi clock
-    spi_miso  = board.D27  #spi Microcomputer In Serial Out
-    spi_cs    = board.D22  #spi Chip Select
-    spi_mosi  = board.D10 #spi Microcomputer Out Serial In (not connected) 
-    gpio_heat = board.D23 #output that controls relay
+    spi_sclk  = board.D17    #spi clock
+    spi_miso  = board.D27    #spi Microcomputer In Serial Out
+    spi_cs    = board.D22    #spi Chip Select
+    spi_mosi  = board.D10    #spi Microcomputer Out Serial In (not connected) 
+    gpio_heat = board.D23    #output that controls relay
+    gpio_heat_invert = False #invert the output state
 except (NotImplementedError,AttributeError):
     print("not running on blinka recognized board, probably a simulation")
 

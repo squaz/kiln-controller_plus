@@ -36,19 +36,22 @@ class Output(object):
     state relay to turn the kiln elements on and off.
     inputs
         config.gpio_heat
+        config.gpio_heat_invert
     '''
     def __init__(self):
         self.active = False
         self.heater = digitalio.DigitalInOut(config.gpio_heat) 
         self.heater.direction = digitalio.Direction.OUTPUT 
+        self.off = config.gpio_heat_invert
+        self.on = not self.off
 
     def heat(self,sleepfor):
-        self.heater.value = True
+        self.heater.value = self.on
         time.sleep(sleepfor)
 
     def cool(self,sleepfor):
         '''no active cooling, so sleep'''
-        self.heater.value = False
+        self.heater.value = self.off
         time.sleep(sleepfor)
 
 # wrapper for blinka board
