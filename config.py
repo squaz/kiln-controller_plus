@@ -277,3 +277,31 @@ kiln_profiles_directory = os.path.abspath(os.path.join(os.path.dirname( __file__
 # To prevent throttling, set throttle_percent to 100.
 throttle_below_temp = 300
 throttle_percent = 20
+
+
+
+########################################################################
+#
+#   Display Configuration (Hardware SPI for 1.77" TFT ST7735)
+#
+# These settings are used to configure the 1.77" TFT ST7735 display.
+# Note: On a Raspberry Pi Zero 2, this display only works with hardware SPI,
+#       so these pin assignments (using BCM numbers) are essential.
+#
+########################################################################
+DISPLAY_CONFIG = {
+    'MOSI': 10,    # SDA (Hardware SPI MOSI)
+    'SCLK': 11,    # SCLK (Hardware SPI Clock)
+    'DC': 13,      # RS (Data/Command)
+    'RST': 19,     # RES (Reset)
+    'CS': 26,      # CS (Chip Select)
+    'width': 160,
+    'height': 128,
+    'rotate': 0,
+    'h_offset': 0,
+    'v_offset': 0,
+    'bgr': False,
+    'font_path': '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    'font_small_size': 11,
+    'font_large_size': 16,
+}

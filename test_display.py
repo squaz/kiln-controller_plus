@@ -1,23 +1,15 @@
+import unittest
 import time
 import logging
-import sys
-# Ensure the 'controller' directory is in the Python path
-sys.path.insert(0, './controller')
-try:
-    from display_screen import KilnDisplay
-except ImportError as e:
-    print(f"Error importing KilnDisplay: {e}")
-    print("Make sure display_screen.py is in the 'controller' subdirectory relative to this script.")
-    sys.exit(1)
+from display_screen import KilnDisplay
 
-# New GPIO mapping for software SPI:
-# SCLK: GPIO26, SDA (MOSI): GPIO19, RS (DC): GPIO6, RES (Reset): GPIO13, CS: GPIO5
-DISPLAY_CONFIG = {
-    'MOSI': 10,    # SDA on GPIO19
-    'SCLK': 11,    # SCLK on GPIO26
-    'DC': 13,      # RS (DC) on GPIO6
-    'RST': 19,    # RES (Reset) on GPIO13
-    'CS': 26,      # CS on GPIO5
+# Dummy configuration for testing (matches your production settings)
+dummy_config = {
+    'MOSI': 10,    # SDA
+    'SCLK': 11,    # SCLK
+    'DC': 13,      # RS (Data/Command)
+    'RST': 19,     # RES (Reset)
+    'CS': 26,      # CS
     'width': 160,
     'height': 128,
     'rotate': 0,
@@ -29,64 +21,57 @@ DISPLAY_CONFIG = {
     'font_large_size': 16,
 }
 
-# Logging setup
-logging.basicConfig(
-    level=logging.INFO,  # Change to DEBUG for more details
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-)
-logger = logging.getLogger("TestDisplay")
+# Set test delay (in seconds) to slow down tests if needed
+TEST_DELAY = 2
 
-if __name__ == "__main__":
-    logger.info("Starting standalone display test...")
+# Configure logging for test output
+logging.basicConfig(level=logging.DEBUG)
 
-    # Initialize display
-    display = KilnDisplay(DISPLAY_CONFIG)
+class TestKilnDisplay(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Initialize the singleton display instance once for all tests
+        cls.display = KilnDisplay.get_instance(dummy_config)
+    
+    def tearDown(self):
+        # Delay after each test to allow for visual confirmation or hardware settling
+        time.sleep(TEST_DELAY)
+    
+    def test_get_local_ip(self):
+        """Test that get_local_ip returns a non-empty string."""
+        ip = self.display.get_local_ip()
+        logging.info(f"Local IP: {ip}")
+        self.assertIsInstance(ip, str)
+        self.assertTrue(len(ip) > 0)
 
-    if display.device is None:
-        logger.error("Display initialization failed. Check connections, config, and logs. Exiting.")
-        sys.exit(1)
+    def test_update_method(self):
+        """Test that the update method runs without exceptions."""
+        ip = self.display.get_local_ip()
+        try:
+            self.display.update(ip, current_temp=123.4, target_temp=150,
+                                current_step=2, remaining_step_time="3m",
+                                remaining_total_time="15m")
+        except Exception as e:
+            self.fail(f"update() method raised an exception: {e}")
 
-    try:
-        logger.info("Display initialized. Running test sequence...")
+    def test_display_message_wrapping(self):
+        """Test display_message with multiple lines that require wrapping."""
+        test_lines = [
+            "This is a very long test message that should automatically wrap into multiple lines on the display.",
+            "Second line for testing.",
+            "Third line is also intentionally long to verify the wrapping logic works as expected."
+        ]
+        try:
+            self.display.display_message(test_lines)
+        except Exception as e:
+            self.fail(f"display_message() method raised an exception: {e}")
+    
+    def test_clear_method(self):
+        """Test that clear() runs without exceptions."""
+        try:
+            self.display.clear()
+        except Exception as e:
+            self.fail(f"clear() method raised an exception: {e}")
 
-        # 1. Show startup message
-        ip = display.get_local_ip()
-        display.display_message("Kiln Display Test", ip, "Starting...")
-        time.sleep(3)
-
-        # 2. Cycle through dummy data using update()
-        for i in range(5):
-            temp = 25.0 + (i * 55.5)
-            target = 1000.0
-            step_name = f"Ramp {i+1}"
-            step_time_s = 1800 - (i * 300)
-            total_time_s = 7200 - (i * 300)
-
-            step_time_str = time.strftime('%H:%M:%S', time.gmtime(step_time_s))
-            total_time_str = time.strftime('%H:%M:%S', time.gmtime(total_time_s))
-
-            logger.info(f"Updating display: Temp={temp:.1f}, Step={step_name}")
-            display.update(
-                ip=ip,
-                current_temp=temp,
-                target_temp=target,
-                current_step=step_name,
-                remaining_step_time=step_time_str,
-                remaining_total_time=total_time_str
-            )
-            time.sleep(2)
-
-        # 3. Show final message
-        logger.info("Test sequence complete. Showing final message.")
-        display.display_message("Test Complete!", "", "Check console.", font=display.font_large)
-        time.sleep(5)
-
-    except KeyboardInterrupt:
-        logger.info("Keyboard interrupt received.")
-    except Exception as e:
-        logger.error(f"An error occurred during the test: {e}")
-    finally:
-        logger.info("Cleaning up display...")
-        if display and display.device:
-            display.clear()
-        logger.info("Standalone test finished.")
+if __name__ == '__main__':
+    unittest.main()
