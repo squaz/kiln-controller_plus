@@ -23,3 +23,5 @@ adafruit-circuitpython-bitbangio
 
 # untested - for mcp9600 and mcp9601
 #adafruit-circuitpython-mcp9600
+luma.core==2.4.2
+luma.lcd==2.11.0
