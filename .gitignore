@@ -10,3 +10,5 @@ thumbs.db
 .idea/*
 state.json
 venv_kiln/*
+grabProject.py
+complete_project.txt

@@ -40,6 +40,23 @@ ovenWatcher = OvenWatcher(oven)
 # this ovenwatcher is used in the oven class for restarts
 oven.set_ovenwatcher(ovenWatcher)
 
+
+
+#-------------------------------------------
+
+# 1) Import the KilnDisplay class
+from display_screen import KilnDisplay
+
+# 2) Initialize the display singleton with your config:
+#    (Be sure the config dict has the right pin info in config.DISPLAY_CONFIG.)
+display = KilnDisplay.get_instance(config.DISPLAY_CONFIG)
+
+# 3) Attach the display as an observer to ovenWatcher:
+ovenWatcher.add_observer(display)
+
+#-------------------------------------------
+
+
 @app.route('/')
 def index():
     return bottle.redirect('/picoreflow/index.html')

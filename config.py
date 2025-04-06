@@ -87,7 +87,7 @@ try:
     spi_sclk  =  board.D22  #board.D17    #spi clock
     spi_miso  =  board.D17 #board.D27    #spi Microcomputer In Serial Out
     spi_cs    =  board.D27 #board.D22    #spi Chip Select
-    spi_mosi  =  board.D10    #spi Microcomputer Out Serial In (not connected) 
+    spi_mosi  =  board.D9    #spi Microcomputer Out Serial In (not connected) 
     gpio_heat =  board.D23    #output that controls relay
     gpio_heat_invert = False #invert the output state
 except (NotImplementedError,AttributeError):
@@ -286,15 +286,10 @@ throttle_percent = 20
 #
 # These settings are used to configure the 1.77" TFT ST7735 display.
 # Note: On a Raspberry Pi Zero 2, this display only works with hardware SPI,
-#       so these pin assignments (using BCM numbers) are essential.
+# 
 #
 ########################################################################
 DISPLAY_CONFIG = {
-    'MOSI': 10,    # SDA (Hardware SPI MOSI)
-    'SCLK': 11,    # SCLK (Hardware SPI Clock)
-    'DC': 13,      # RS (Data/Command)
-    'RST': 19,     # RES (Reset)
-    'CS': 26,      # CS (Chip Select)
     'width': 160,
     'height': 128,
     'rotate': 0,
@@ -303,5 +298,5 @@ DISPLAY_CONFIG = {
     'bgr': False,
     'font_path': '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
     'font_small_size': 11,
-    'font_large_size': 16,
+    'font_large_size': 13,
 }
