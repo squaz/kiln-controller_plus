@@ -12,3 +12,4 @@ state.json
 venv_kiln/*
 grabProject.py
 complete_project.txt
+.env

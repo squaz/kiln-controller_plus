@@ -1,6 +1,6 @@
 import threading,logging,json,time,datetime
 from oven import Oven
-from display_screen import KilnDisplay
+from lib.webSocket_observer import WebSocketObserver
 
 log = logging.getLogger(__name__)
 
@@ -78,21 +78,11 @@ class OvenWatcher(threading.Thread):
         
         self.observers.append(observer)
 
-    def notify_all(self,message):
-        message_json = json.dumps(message)
-        log.debug("sending to %d clients: %s"%(len(self.observers),message_json))
-
+    def notify_all(self, message):
+        log.debug("sending to %d clients: %s"%(len(self.observers),message))
         for obs in self.observers:
-            if obs:
-                try:
-                    # If the observer is a KilnDisplay, send the dictionary.
-                    # Otherwise, send the JSON string.
-                    if isinstance(obs, KilnDisplay):
-                        obs.send(message)
-                    else:
-                        obs.send(message_json)
-                except Exception as e:
-                    log.error("could not write to observer %s: %s" % (obs, e))
-                    self.observers.remove(obs)
-            else:
+            try:
+                obs.send(message)
+            except Exception as e:
+                log.error(f"Could not write to observer ({getattr(obs, 'observer_type', 'unknown')}): {e}")
                 self.observers.remove(obs)

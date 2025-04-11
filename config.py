@@ -1,7 +1,10 @@
 import logging
 import os
+from dotenv import load_dotenv
 from digitalio import DigitalInOut
 import busio
+
+load_dotenv() 
 
 ########################################################################
 #
@@ -300,3 +303,40 @@ DISPLAY_CONFIG = {
     'font_small_size': 11,
     'font_large_size': 13,
 }
+
+
+########################################################################
+#
+#
+# Input Rotary Switch 
+# !!Not imlemented yet!!
+#
+#
+########################################################################
+enable_rotary_input = False  # Set to False to disable
+
+ROTARY_CONFIG = {
+    'clk' :  21,
+    'dat' :  20,
+    'btn' :   16,    
+    'invert_btn' : False, 
+}
+
+
+########################################################################
+#
+#
+# Telegram Observer Configuration
+#
+#
+########################################################################
+enable_telegram_observer = True  # Set to False to disable
+
+telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+telegram_chat_id   = os.getenv("TELEGRAM_CHAT_ID") 
+telegram_update_interval = 10  # seconds between updates
+telegram_send_when_idle = False  # Only send updates when kiln is active (RUNNING or PAUSED)
+
+if enable_telegram_observer:
+    if not telegram_bot_token or not telegram_chat_id:
+        raise ValueError("Telegram bot is enabled but TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is missing from the .env file")

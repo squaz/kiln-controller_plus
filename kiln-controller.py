@@ -26,7 +26,7 @@ sys.path.insert(0, script_dir + '/lib/')
 profile_path = config.kiln_profiles_directory
 
 from oven import SimulatedOven, RealOven, Profile
-from ovenWatcher import OvenWatcher
+from ovenWatcher import OvenWatcher, WebSocketObserver  
 
 app = bottle.Bottle()
 
@@ -53,6 +53,12 @@ display = KilnDisplay.get_instance(config.DISPLAY_CONFIG)
 
 # 3) Attach the display as an observer to ovenWatcher:
 ovenWatcher.add_observer(display)
+
+from lib.telegram_observer import TelegramObserver
+
+if config.enable_telegram_observer:
+    telegram_observer = TelegramObserver()
+    ovenWatcher.add_observer(telegram_observer)
 
 #-------------------------------------------
 
@@ -263,7 +269,8 @@ def handle_config():
 @app.route('/status')
 def handle_status():
     wsock = get_websocket_from_request()
-    ovenWatcher.add_observer(wsock)
+    observer = WebSocketObserver(wsock)
+    ovenWatcher.add_observer(observer)
     log.info("websocket (status) opened")
     while True:
         try:

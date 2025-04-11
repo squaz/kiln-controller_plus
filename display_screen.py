@@ -3,10 +3,11 @@ from luma.lcd.device import st7735
 from luma.core.render import canvas
 from PIL import ImageFont
 import logging, socket
+from lib.base_observer import BaseObserver
 
 logger = logging.getLogger(__name__)
 
-class KilnDisplay:
+class KilnDisplay(BaseObserver):
     """
     KilnDisplay is a singleton that also acts as an observer for OvenWatcher.
     This version displays:
@@ -39,6 +40,9 @@ class KilnDisplay:
             return
         self._initialized = True
 
+        # Initialize BaseObserver manually
+        BaseObserver.__init__(self, observer_type="display")
+
         self.width = config.get('width', 160)
         self.height = config.get('height', 128)
 
@@ -48,7 +52,7 @@ class KilnDisplay:
         font_path = config.get('font_path', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
         try:
             self.font_small = ImageFont.truetype(font_path, config.get('font_small_size', 11))
-            self.font_large = ImageFont.truetype(font_path, config.get('font_large_size', 16))
+            self.font_large = ImageFont.truetype(font_path, config.get('font_large_size', 13))
         except Exception as e:
             logger.warning(f"[KilnDisplay] Could not load custom fonts: {e}")
 
