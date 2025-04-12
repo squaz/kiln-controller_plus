@@ -334,7 +334,7 @@ enable_telegram_observer = True  # Set to False to disable
 
 telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
 telegram_chat_id   = os.getenv("TELEGRAM_CHAT_ID") 
-telegram_update_interval = 10  # seconds between updates
+telegram_update_interval = 120  # seconds between updates
 telegram_send_when_idle = False  # Only send updates when kiln is active (RUNNING or PAUSED)
 
 if enable_telegram_observer:
