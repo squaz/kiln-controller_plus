@@ -313,7 +313,7 @@ DISPLAY_CONFIG = {
 #
 #
 ########################################################################
-enable_rotary_input = False  # Set to False to disable
+enable_rotary_input = True  # Set to False to disable
 
 ROTARY_CONFIG = {
     'clk' :  21,

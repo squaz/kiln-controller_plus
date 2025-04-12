@@ -44,15 +44,22 @@ oven.set_ovenwatcher(ovenWatcher)
 
 #-------------------------------------------
 
-# 1) Import the KilnDisplay class
 from display_screen import KilnDisplay
+from menu_ui import MenuUI
+from rotary_input import RotaryInput
 
-# 2) Initialize the display singleton with your config:
-#    (Be sure the config dict has the right pin info in config.DISPLAY_CONFIG.)
+
+# 1) Initialize the display
 display = KilnDisplay.get_instance(config.DISPLAY_CONFIG)
 
-# 3) Attach the display as an observer to ovenWatcher:
-ovenWatcher.add_observer(display)
+# 2) Create the MenuUI (an observer) and attach to ovenWatcher
+ui = MenuUI(display)
+ovenWatcher.add_observer(ui)
+
+# 3) Start rotary input thread
+rotary_thread = RotaryInput(ui)
+rotary_thread.start()
+
 
 from lib.telegram_observer import TelegramObserver
 
