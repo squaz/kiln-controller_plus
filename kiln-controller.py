@@ -9,7 +9,7 @@ import json
 import bottle
 import gevent
 import geventwebsocket
-#from bottle import post, get
+from bottle import post, get
 from gevent.pywsgi import WSGIServer
 from geventwebsocket.handler import WebSocketHandler
 from geventwebsocket import WebSocketError
@@ -44,30 +44,92 @@ oven.set_ovenwatcher(ovenWatcher)
 
 #-------------------------------------------
 
-from display_screen import KilnDisplay
-from menu_ui import MenuUI
-from rotary_input import RotaryInput
+# --- Display UI Imports (Using new paths) ---
+try:
+    from display_ui.display_screen import KilnDisplay
+    from display_ui.menu_ui import MenuUI
+    from display_ui.rotary_input import RotaryInput
+    # We also need RPi.GPIO for cleanup, import conditionally
+    if config.enable_rotary_input:
+        try:
+            import RPi.GPIO as GPIO
+        except (ImportError, RuntimeError):
+            log.warning("RPi.GPIO not found/loadable, cleanup will be skipped.")
+            GPIO = None
+    else:
+        GPIO = None
+except ImportError as e:
+    log.error(f"Failed to import display_ui modules: {e}", exc_info=True)
+    # Decide if UI is critical
+    log.warning("Display UI failed to import, proceeding without it.")
+    # sys.exit(1) # Uncomment to make UI mandatory
+    KilnDisplay = None # Define as None to allow checks later
+    MenuUI = None
+    RotaryInput = None
+# --- End Display UI Imports ---
 
 
-# 1) Initialize the display
-display = KilnDisplay.get_instance(config.DISPLAY_CONFIG)
+# -------------------------------------------
+# Display UI Initialization & Integration
+# -------------------------------------------
+display = None
+ui = None
+rotary_thread = None
 
-# 2) Create the MenuUI (an observer) and attach to ovenWatcher
-ui = MenuUI(display)
-ovenWatcher.add_observer(ui)
+# Only initialize if the necessary classes were imported successfully
+if KilnDisplay and MenuUI and RotaryInput:
+    try:
+        log.info("Initializing Display UI components...")
 
-# 3) Start rotary input thread
-rotary_thread = RotaryInput(ui)
-rotary_thread.start()
+        # 1) Initialize the display
+        display_config = getattr(config, 'DISPLAY_CONFIG', {})
+        display = KilnDisplay.get_instance(display_config)
+        if not display or not display.device: # Check if hardware init succeeded
+            raise RuntimeError("KilnDisplay failed to initialize device.")
+        log.info("KilnDisplay initialized.")
+
+        # 2) Create the MenuUI, pass oven object, and register as observer
+        ui = MenuUI(display)
+        ui.oven = oven # <<<--- IMPORTANT: Pass oven object reference to UI
+        ovenWatcher.add_observer(ui)
+        log.info("MenuUI initialized and attached as observer.")
+
+        # 3) Initialize and Start rotary input thread (if enabled in config)
+        if config.enable_rotary_input:
+            rotary_thread = RotaryInput(ui) # RotaryInput handles internal checks
+            rotary_thread.start()
+            # Log hardware availability status based on RotaryInput's check
+            if rotary_thread.available:
+                log.info("RotaryInput thread started (Hardware Available).")
+            else:
+                log.warning("RotaryInput thread started but hardware check failed.")
+        else:
+            log.info("Rotary input disabled by config, thread not started.")
+
+    except Exception as e:
+        log.error(f"Error during Display UI initialization: {e}", exc_info=True)
+        log.warning("Continuing without Display UI...")
+        # Ensure objects are None if init failed partially
+        display = None
+        ui = None
+        rotary_thread = None
+else:
+    # This logs if the initial imports at the top of the file failed
+    log.warning("Display UI classes not imported, skipping UI initialization.")
+# -------------------------------------------
 
 
-from lib.telegram_observer import TelegramObserver
+# --- Other Observer Initialization (e.g., Telegram) ---
+from lib.telegram_observer import TelegramObserver # Keep this import here
 
 if config.enable_telegram_observer:
-    telegram_observer = TelegramObserver()
-    ovenWatcher.add_observer(telegram_observer)
-
-#-------------------------------------------
+    try:
+        telegram_observer = TelegramObserver()
+        ovenWatcher.add_observer(telegram_observer)
+        log.info("Telegram observer added.")
+    except Exception as e:
+        log.error(f"Failed to initialize Telegram observer: {e}")
+# --- End Observer Initialization ---
 
 
 @app.route('/')
