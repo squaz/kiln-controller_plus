@@ -1,6 +1,6 @@
 # --- START OF FILE: display_ui/menu_ui.py ---
 import logging
-from lib.base_observer import BaseObserver # Assuming lib is accessible
+from lib.base_observer import BaseObserver  # Assuming lib is accessible
 from display_ui.screens import build_screens
 # Import TabBar component
 try:
@@ -13,10 +13,14 @@ logger = logging.getLogger(__name__)
 
 class MenuUI(BaseObserver):
     """
-    Handles screen state, input navigation, hierarchy, and modal components.
-    Receives kiln data via .send() and forwards it to the active screen.
-    Implements global navigation logic using hierarchy levels and active input context.
-    Special handling for Overview screen display.
+    Manages UI state, navigation, component lifecycle, and input routing.
+
+    Coordinates interaction between Screens, Components (like TabBar,
+    ScrollableList, ConfirmScreen), and the RotaryInput. Receives external
+    data updates (e.g., kiln status) via the observer pattern.
+
+    Special handling for Overview screen: It's treated as Level 1 immediately
+    upon selection in the tab bar.
     """
 
     def __init__(self, display):
@@ -31,18 +35,18 @@ class MenuUI(BaseObserver):
         # Create TabBar instance
         self.tab_bar_component = TabBar(self) if TabBar else None
         if not self.tab_bar_component:
-             logger.error("TabBar component failed to initialize.")
+            logger.error("TabBar component failed to initialize.")
 
         # --- Global State Initialization ---
         self.current_screen_name = "overview" # Start at the overview screen
         self.current_screen = self.screens.get(self.current_screen_name)
-        if self.current_screen is None: # Safety check
+        if self.current_screen is None:
             raise ValueError(f"Default screen '{self.current_screen_name}' not found!")
 
         # Start Overview at Level 1 conceptually, others at 0
         self.current_screen_level = 1 if self.current_screen_name == "overview" else 0
         self.current_tab_index = 0     # Index within the *allowed* tabs list
-        self.active_input_context = None # For modal components
+        self.active_input_context = None # Info about active modal components
         # --- End Global State ---
 
         # Initial screen setup call and draw
@@ -57,21 +61,25 @@ class MenuUI(BaseObserver):
         if state in {"RUNNING", "PAUSED"}:
             return ["overview", "diagram"]
         else:
-            # Deactivated screens are commented out
+            # Currently active tabs when IDLE
             return [
                 "overview",
                 "diagram",
                 "profile_selector",
-                # "manual_control",
-                # "profile_builder",
-                # "settings"
+                # "manual_control", # Deactivated
+                # "profile_builder",# Deactivated
+                # "settings"        # Deactivated
             ]
 
     def send(self, data):
         """Receives data and forwards it to the active view's update method."""
-        if not isinstance(data, dict): return
+        if not isinstance(data, dict):
+            logger.warning(f"Received non-dict data: {type(data)}")
+            return
         self.kiln_data = data.copy()
+
         target_view = self.active_input_context.get('component') if self.active_input_context else self.current_screen
+
         if target_view and hasattr(target_view, "update"):
             try:
                 target_view.update(self.kiln_data)
@@ -86,102 +94,91 @@ class MenuUI(BaseObserver):
         if self.active_input_context:
             component = self.active_input_context.get('component')
             if component and hasattr(component, "handle_event"):
-                try: component.handle_event(event)
-                except Exception as e: logger.error(f"Error in component {type(component).__name__}.handle_event: {e}", exc_info=True)
-            else: logger.error("Active context component invalid or missing handle_event!")
-            return # Event consumed by component
+                try:
+                    component.handle_event(event)
+                except Exception as e:
+                    logger.error(f"Error in component {type(component).__name__}.handle_event: {e}", exc_info=True)
+            else:
+                logger.error("Active context component invalid or missing handle_event!")
+            return # Event consumed
 
         # 2. Handle Based on Level (No Active Component)
         redraw_needed = False
-        screen_result = None
-        tabs = self.get_allowed_tabs() # Get tabs list once
-        if not tabs: return # Safety check
+        screen_result = None # Store results from screen handlers
+        tabs = self.get_allowed_tabs()
+        if not tabs: return
 
-        # --- Case A: Overview Screen is Active (Conceptually Level 1) ---
-        if self.current_screen_level == 1 and self.current_screen_name == "overview":
-            logger.debug("Handling event for Overview Screen (L1)")
-            if hasattr(self.current_screen, "handle_event"):
-                try:
-                    screen_result = self.current_screen.handle_event(event)
-                except Exception as e:
-                    logger.error(f"Error in {self.current_screen_name}.handle_event: {e}", exc_info=True)
-            else:
-                logger.warning("Overview screen missing handle_event method!")
+        # --- Combined Level 0 / Level 1 (Overview Special Case) Logic ---
+        # This block handles navigation when no component is active.
+        # It differentiates between the standard tab bar (Level 0 for non-Overview)
+        # and the Overview screen's unique behavior (Level 1).
 
-            # Check if Overview requested switch_and_enter (for rot_right)
-            if isinstance(screen_result, tuple) and len(screen_result) == 2 and screen_result[0] == "switch_and_enter":
-                target_screen_name = screen_result[1]
-                logger.info(f"Handling switch_and_enter request from Overview to {target_screen_name}")
-                # Switch screen (level will be set based on target by _internal_switch_to)
-                self._internal_switch_to(target_screen_name, level=0)
-                new_screen = self.screens.get(target_screen_name)
-                # Attempt to enter the new screen's submenu immediately
-                if new_screen and hasattr(new_screen, "enter_screen"):
-                    enter_result = new_screen.enter_screen()
-                    if enter_result == "enter_submenu":
-                        self.current_screen_level = 1 # Ensure level is 1 after entering
-                        logger.debug(f"Immediately entered submenu for {target_screen_name}")
-                redraw_needed = True
-                screen_result = None # Mark as handled
+        original_tab_index = self.current_tab_index
 
-            elif screen_result == "context_pushed":
-                pass # Redraw handled by push_context
+        # Handle events differently depending on whether we are viewing the tab bar or a screen's submenu
+        if self.current_screen_level == 0: # Standard Tab Bar Mode (for non-Overview screens)
+            logger.debug(f"Handling event at Level 0 (Tab Bar), Current Tab: {self.current_screen_name}")
 
-            # If event was rot_left, pop_context_or_level was called by Overview's handler,
-            # which sets level=0 and triggers redraw. No further action needed here.
-
-        # --- Case B: Tab Bar is Active (Level 0) for screens OTHER than Overview ---
-        elif self.current_screen_level == 0:
-            logger.debug(f"Handling event for Tab Bar (L0), Current Tab: {self.current_screen_name}")
-            original_tab_index = self.current_tab_index
-
-            # Handle Rotation
             if event == "rot_left":
                 self.current_tab_index = (self.current_tab_index - 1 + len(tabs)) % len(tabs)
             elif event == "rot_right":
                 self.current_tab_index = (self.current_tab_index + 1) % len(tabs)
-
-            # Handle Short Press (Enter Screen Submenu)
             elif event == "short_press":
                 if hasattr(self.current_screen, "enter_screen"):
-                    try:
-                        screen_result = self.current_screen.enter_screen()
-                        if screen_result == "enter_submenu":
-                            self.current_screen_level = 1; redraw_needed = True
-                        # context_pushed handled by push_context
-                    except Exception as e:
-                        logger.error(f"Error in {self.current_screen_name}.enter_screen: {e}", exc_info=True)
-                else: # Default enter submenu
+                    screen_result = self.current_screen.enter_screen()
+                    if screen_result == "enter_submenu":
+                        self.current_screen_level = 1; redraw_needed = True
+                    # context_pushed handled by push_context
+                else: # Default action
                     self.current_screen_level = 1; redraw_needed = True
-
-            # Handle Long Press (Go back to Overview)
             elif event == "long_press":
-                # Long press on non-overview tab goes to overview
-                logger.debug("Long press on Tab Bar -> Switching to Overview")
-                self._internal_switch_to("overview", level=0) # _internal sets level to 1
-                redraw_needed = True
+                 # Should only happen if NOT on Overview (as it starts at L1)
+                 if self.current_screen_name != "overview":
+                    logger.debug("Long press on Tab Bar -> Switching to Overview")
+                    self._internal_switch_to("overview", level=0); redraw_needed = True # _internal sets level 1
 
-            # If Rotation Changed Tab -> Switch Screen Internally
+            # If rotation changed the tab, switch screen
             if event in ("rot_left", "rot_right") and self.current_tab_index != original_tab_index:
-                 self._internal_switch_to(tabs[self.current_tab_index], level=0) # Handles overview level set
+                 self._internal_switch_to(tabs[self.current_tab_index], level=0)
                  redraw_needed = True
 
-        # --- Case C: Submenu Active (Level > 0) for screens OTHER than Overview ---
-        else:
-            logger.debug(f"Handling event for Screen {self.current_screen_name} Submenu (L{self.current_screen_level})")
+        elif self.current_screen_level >= 1: # Submenu Mode (Level 1+ OR Overview's Level 1)
+            logger.debug(f"Handling event at Level {self.current_screen_level} for screen {self.current_screen_name}")
+
             if event == "long_press":
-                self.pop_context_or_level() # Pop component or return to Level 0 Tab Bar
+                self.pop_context_or_level() # Handles own redraw
             elif hasattr(self.current_screen, "handle_event"):
                 try:
-                    # Let the screen handle other events in its submenu state
+                    # Let the specific screen's handler process the event
                     screen_result = self.current_screen.handle_event(event)
-                    # Could potentially handle switch_and_enter here too if needed
+
+                    # --- Process special 'switch_and_enter' result ---
+                    # This allows a screen (like Diagram) to request immediate entry into another screen
+                    if isinstance(screen_result, tuple) and len(screen_result) == 2 and screen_result[0] == "switch_and_enter":
+                        target_screen_name = screen_result[1]
+                        logger.info(f"[MenuUI] Handling switch_and_enter request to {target_screen_name}")
+                        # 1. Switch screen internally (level determined by _internal_switch_to)
+                        self._internal_switch_to(target_screen_name, level=0)
+                        # 2. Attempt to enter the new screen's submenu
+                        new_screen = self.screens.get(target_screen_name)
+                        if new_screen and hasattr(new_screen, "enter_screen"):
+                            enter_result = new_screen.enter_screen()
+                            if enter_result == "enter_submenu":
+                                # Ensure level is 1 if we just entered a submenu
+                                self.current_screen_level = 1
+                                logger.debug(f"Immediately entered submenu for {target_screen_name}")
+                            elif enter_result == "context_pushed":
+                                logger.debug(f"{target_screen_name} pushed its own context on enter.")
+                        redraw_needed = True # Redraw needed after switch/enter attempt
+                        screen_result = None # Mark as handled
+                    # --- End switch_and_enter processing ---
+
                 except Exception as e:
                     logger.error(f"Error in {self.current_screen_name}.handle_event: {e}", exc_info=True)
             else:
-                 logger.warning(f"Screen {self.current_screen_name} has no handle_event for Level {self.current_screen_level}")
+                 logger.warning(f"Screen {self.current_screen_name} has no handle_event method for level {self.current_screen_level}")
 
-        # --- Trigger Redraw if needed ---
+        # --- Trigger Redraw if necessary ---
         if redraw_needed and not self.active_input_context and screen_result != "context_pushed":
              self.redraw_current_view()
 
@@ -191,36 +188,38 @@ class MenuUI(BaseObserver):
         if not target_screen:
             logger.warning(f"Unknown screen: {new_screen_name}"); return
 
-        # Avoid redundant actions if already on the target screen unless level changes
-        if new_screen_name == self.current_screen_name and \
-           not (new_screen_name == "overview" and self.current_screen_level == 0 and level == 0) and \
-           self.current_screen_level == level:
-             # logger.debug(f"Already on screen {new_screen_name} at level {level}. No switch.")
-             # Still call on_enter for potential resets when switching tabs at level 0
-             if level == 0 and hasattr(self.current_screen, "on_enter"): self.current_screen.on_enter()
-             return
+        # Avoid redundant actions if already on the target screen AND level isn't changing meaningfully
+        # Exception: Allow forcing redraw when switching between tabs at level 0
+        needs_switch = True
+        if new_screen_name == self.current_screen_name:
+             is_overview_target = new_screen_name == "overview"
+             target_level = 1 if is_overview_target else level # Determine target level
+             if self.current_screen_level == target_level:
+                  needs_switch = False
+                  # Still call on_enter if just switching tabs at level 0
+                  if level == 0 and hasattr(self.current_screen, "on_enter"): self.current_screen.on_enter()
+
+        if not needs_switch: return # Exit if no real switch needed
 
         # Call exit hook on the old screen
         if self.current_screen and hasattr(self.current_screen, "on_exit"):
-            # Don't call exit on self if just changing level (e.g., Overview 0->1)
-            if not (new_screen_name == self.current_screen_name):
+            if not (new_screen_name == self.current_screen_name): # Don't exit self if just changing level
                 try: self.current_screen.on_exit()
                 except Exception as e: logger.error(f"Error in {self.current_screen_name}.on_exit: {e}", exc_info=True)
 
-        logger.info(f"Switching to screen: {new_screen_name} requested at level {level}")
+        logger.info(f"Switching to screen: {new_screen_name} (requested level {level})")
 
-        previous_screen_name = self.current_screen_name
         self.current_screen_name = new_screen_name
         self.current_screen = target_screen
         self.active_input_context = None # Clear component context
 
-        # --- Special Level Handling for Overview ---
-        if new_screen_name == "overview": # Regardless of requested level
-            self.current_screen_level = 1 # Overview display always means Level 1 interaction mode
-            logger.debug("Switched to Overview, setting level to 1.")
+        # Set the correct level based on the target screen
+        if new_screen_name == "overview":
+            self.current_screen_level = 1 # Overview is always conceptually Level 1 when active
+            logger.debug("Switched to Overview, level set to 1.")
         else:
-            self.current_screen_level = level # Use requested level for other screens
-        # --- End Special Handling ---
+            self.current_screen_level = level # Use requested level for others
+            logger.debug(f"Switched to {new_screen_name}, level set to {level}.")
 
         # Update tab index
         try:
@@ -235,15 +234,18 @@ class MenuUI(BaseObserver):
 
     def switch_to_screen(self, screen_name):
         """Public method for screens to switch main screen (goes to Level 0/1)."""
-        logger.debug(f"Screen '{self.current_screen_name}' requested switch to '{screen_name}'")
-        self._internal_switch_to(screen_name, level=0) # Request level 0, _internal handles Overview
-        self.redraw_current_view() # Trigger redraw
+        logger.debug(f"Req switch to '{screen_name}'")
+        self._internal_switch_to(screen_name, level=0) # Request level 0, _internal adjusts for Overview
+        self.redraw_current_view()
 
     def push_context(self, mode, component, caller_screen_name, callback=None):
         """Pushes a modal component onto the view stack."""
-        if not component: logger.error("push_context called with None component!"); return
+        if not component: logger.error("push_context: None component!"); return
         new_level = self.current_screen_level + 1
-        self.active_input_context = {'mode': mode,'component': component,'caller': caller_screen_name,'callback': callback,'level': new_level}
+        self.active_input_context = {
+            'mode': mode,'component': component,'caller': caller_screen_name,
+            'callback': callback,'level': new_level
+        }
         self.current_screen_level = new_level
         logger.debug(f"Pushed context: {mode}, Caller: {caller_screen_name}, Level now {self.current_screen_level}")
         if hasattr(component, "on_enter"): component.on_enter()
@@ -251,21 +253,20 @@ class MenuUI(BaseObserver):
 
     def pop_context(self):
         """Pops the currently active modal component."""
-        if not self.active_input_context: logger.warning("pop_context called but no active context!"); return
+        if not self.active_input_context: logger.warning("pop_context: No active context!"); return
         mode = self.active_input_context.get('mode'); caller_name = self.active_input_context.get('caller')
         caller_level = self.active_input_context.get('level', 1) - 1
         logger.debug(f"Popping context: {mode}, Returning to level {caller_level}")
 
-        self.active_input_context = None; self.current_screen_level = max(0, caller_level)
+        self.active_input_context = None
+        self.current_screen_level = max(0, caller_level) # Restore previous level
 
-        # Ensure current_screen matches caller (usually they are the same)
+        # Ensure current_screen is correct after pop
         if caller_name and caller_name != self.current_screen_name:
-            logger.warning(f"Popping context - caller '{caller_name}' differs from current screen '{self.current_screen_name}'.")
-            # Only switch back if caller exists and level makes sense
-            if caller_name in self.screens and self.current_screen_level > 0:
-                 self._internal_switch_to(caller_name, self.current_screen_level)
+            logger.warning(f"Popping context - caller '{caller_name}' differs from current '{self.current_screen_name}'.")
+            # Generally assume current_screen remains correct unless explicitly switched
 
-        # Call on_enter for the screen/component regaining focus
+        # Call on_enter for the view regaining focus
         view_to_reactivate = self.current_screen
         if view_to_reactivate and hasattr(view_to_reactivate, "on_enter"): view_to_reactivate.on_enter()
 
@@ -278,16 +279,25 @@ class MenuUI(BaseObserver):
               if component and hasattr(component, "handle_event"): component.handle_event("long_press")
               else: logger.debug("Component lacks long_press handler, forcing pop."); self.pop_context()
          elif self.current_screen_level > 0: # In a submenu (including Level 1 Overview)
-              logger.debug(f"Returning to tab bar from level {self.current_screen_level}")
-              self.current_screen_level = 0 # Go back to tab bar level
+              logger.debug(f"Returning to tab bar view from level {self.current_screen_level}")
+              self.current_screen_level = 0 # Go back to Level 0
+              # Find the index of the current screen in the allowed tabs
+              try:
+                  tabs = self.get_allowed_tabs()
+                  self.current_tab_index = tabs.index(self.current_screen_name)
+              except ValueError:
+                  self.current_tab_index = 0 # Fallback to first tab
+              # Call on_enter for the screen that will now be displayed in tab mode
               if hasattr(self.current_screen, "on_enter"): self.current_screen.on_enter()
               self.redraw_current_view() # Redraw needed to show tab bar (or overview if now selected)
-         # No action needed if already at level 0
 
     def redraw_current_view(self):
         """Determines what to draw based on state and calls the draw method."""
-        if not self.display or not self.display._buffer: return
-        logger.info(f"[MenuUI] Redrawing view - Context: {self.active_input_context is not None}, Screen: {self.current_screen_name}, Level: {self.current_screen_level}")
+        if not self.display or not hasattr(self.display, '_buffer') or not self.display._buffer:
+             logger.warning("[MenuUI] Redraw requested but display buffer not available.")
+             return
+
+        logger.info(f"[MenuUI] Redrawing view - Screen: {self.current_screen_name}, Level: {self.current_screen_level}, Context: {self.active_input_context is not None}")
 
         target_to_draw = None
         is_component = bool(self.active_input_context)
@@ -297,9 +307,10 @@ class MenuUI(BaseObserver):
         else:
             target_to_draw = self.current_screen
 
+        # --- Drawing Logic ---
         try:
             if is_component:
-                # Draw Active Component
+                # Draw the active component (e.g., ScrollableList, ConfirmScreen)
                 if target_to_draw and hasattr(target_to_draw, "draw"):
                     logger.debug(f"Drawing component: {type(target_to_draw).__name__}")
                     target_to_draw.draw()
@@ -314,7 +325,8 @@ class MenuUI(BaseObserver):
             else: # Level >= 1 (Draw Screen's Full/Submenu View)
                 if target_to_draw and hasattr(target_to_draw, "draw"):
                     logger.debug(f"Drawing screen full/submenu: {type(target_to_draw).__name__}")
-                    target_to_draw.draw(mode="submenu") # Pass mode for consistency
+                    # Pass mode="submenu" for screens that might use it, Overview ignores it now
+                    target_to_draw.draw(mode="submenu")
                 else: logger.warning(f"Screen {type(target_to_draw).__name__} not drawable."); self.display.draw_lines(["Err: Bad Screen"], clear_first=True)
 
         except Exception as e:
@@ -322,7 +334,10 @@ class MenuUI(BaseObserver):
             try: self.display.draw_lines(["Draw Error:", type(target_to_draw).__name__], clear_first=True)
             except Exception: pass
 
-        # Commit buffer to display AFTER drawing is complete
-        self.display.show()
+        # --- Commit buffer to display ---
+        try:
+            self.display.show()
+        except Exception as e:
+            logger.error(f"Error calling display.show(): {e}")
 
 # --- END OF FILE: display_ui/menu_ui.py ---
