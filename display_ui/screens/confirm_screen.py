@@ -8,12 +8,14 @@ class ConfirmScreen(UIScreen):
         self.on_yes = None
         self.on_no = None
         self.selected = 0  # 0 = YES, 1 = NO
-
-    def set_context(self, message, on_yes, on_no=None):
+        self.return_to = "overview"
+   
+    def set_context(self, message, on_yes, on_no=None, return_to="overview"):
         self.message = message
         self.on_yes = on_yes
         self.on_no = on_no
-        self.selected = 0  # default to YES
+        self.selected = 0
+        self.return_to = return_to
 
     def on_enter(self):
         self.draw()
@@ -32,7 +34,7 @@ class ConfirmScreen(UIScreen):
                 self.on_yes()
             elif self.selected == 1 and callable(self.on_no):
                 self.on_no()
-            self.ui.switch_to("overview")  # Return to main view after decision
+            self.ui.switch_to(self.return_to)
 
     def update(self, data):
         pass  # No kiln data needed here

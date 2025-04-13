@@ -95,3 +95,40 @@ class KilnDisplay:
             return
         with canvas(self.device) as draw:
             draw_fn(draw)
+
+    def draw_confirm(self, message, selected_index=0):
+        """
+        Draw a YES/NO confirmation dialog with a message.
+        """
+        if not self.device:
+            return
+
+        yes_selected = (selected_index == 0)
+        no_selected = (selected_index == 1)
+
+        with canvas(self.device) as draw:
+            # Auto-wrap message to fit screen
+            max_width = self.width - 10
+            words = message.split()
+            lines = []
+            current_line = ""
+            for word in words:
+                test_line = f"{current_line} {word}".strip()
+                bbox = self.font_small.getbbox(test_line)
+                w = bbox[2] - bbox[0]
+                if w > max_width:
+                    lines.append(current_line)
+                    current_line = word
+                else:
+                    current_line = test_line
+            if current_line:
+                lines.append(current_line)
+
+            y = 5
+            for line in lines:
+                draw.text((5, y), line, font=self.font_small, fill="white")
+                y += 14
+
+            # Draw YES / NO
+            draw.text((10, self.height - 24), "[ YES ]" if yes_selected else "  YES  ", font=self.font_small, fill="white")
+            draw.text((80, self.height - 24), "[ NO ]" if no_selected else "  NO  ", font=self.font_small, fill="white")

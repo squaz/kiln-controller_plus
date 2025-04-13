@@ -340,3 +340,34 @@ telegram_send_when_idle = False  # Only send updates when kiln is active (RUNNIN
 if enable_telegram_observer:
     if not telegram_bot_token or not telegram_chat_id:
         raise ValueError("Telegram bot is enabled but TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is missing from the .env file")
+    
+
+
+########################################################################
+#
+#
+# Dynamic_Settings
+# === Optional dynamic settings override (static config takes priority)
+#
+########################################################################
+
+try:
+    import sys
+    import settings_manager as _settings
+
+    class _ConfigProxy:
+        def __getattr__(self, name):
+            if name in globals():
+                return globals()[name]
+            return _settings.get_setting(name, _settings.DEFAULT_SETTINGS.get(name))
+
+        def __setattr__(self, name, value):
+            if name in globals():
+                globals()[name] = value
+            else:
+                _settings.set_setting(name, value)
+
+    sys.modules[__name__] = _ConfigProxy()
+
+except Exception as e:
+    print(f"[config] ⚠️ dynamic override failed: {e}")
