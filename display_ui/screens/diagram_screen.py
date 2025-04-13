@@ -133,6 +133,11 @@ class DiagramScreen(UIScreen):
 
     def handle_event(self, event):
         """Handles events when DiagramScreen is active (level > 0)."""
+        if event == "rot_left":
+            # We use switch_to_screen which requests Level 0, but
+            # MenuUI._internal_switch_to promotes Overview to Level 1 automatically.
+            self.ui.switch_to_screen("overview")
+            return None # Event handled
         # Long press is handled globally to go back up a level.
         # Short press or rotation could potentially interact with the diagram in the future (e.g., show point details)
         # For now, they do nothing in this screen.
