@@ -52,15 +52,16 @@ class MenuUI(BaseObserver):
             self.screen.update(self.kiln_data)
 
     def handle_rotary_event(self, event):
-        logger.debug(f"[MenuUI] rotary event: {event}, screen={self.screen_name}, submenu={self.in_submenu}")
+        logger.debug(f"[MenuUI] rotary event: {event} on screen: {self.screen_name}")
 
         if self.in_submenu:
             if hasattr(self.screen, "handle_event"):
                 result = self.screen.handle_event(event)
-                if isinstance(result, str):
-                    self.switch_to(result)
-                elif result == "exit_submenu":
+                if result == "tab_bar":
                     self.enter_tab_bar()
+                elif isinstance(result, str):
+                    self.switch_to(result)
+
         else:
             tabs = self.get_allowed_tabs()
 

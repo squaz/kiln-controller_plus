@@ -16,7 +16,6 @@ class RotaryInput(threading.Thread):
         super().__init__(daemon=True)
         self.ui = ui_manager
 
-        # Example: config.ROTARY_CONFIG = { 'clk': 21, 'dat': 20, 'btn': 16, 'invert_btn': False }
         cfg = config.ROTARY_CONFIG
         self.clk_pin = cfg['clk']
         self.dat_pin = cfg['dat']
@@ -30,6 +29,8 @@ class RotaryInput(threading.Thread):
 
         self.last_clk = GPIO.input(self.clk_pin)
         self.last_btn = GPIO.input(self.btn_pin)
+        self.btn_down_time = None
+        self.press_threshold = 0.8  # seconds for long press
 
     def run(self):
         logger.info("[RotaryInput] Starting rotary poll loop...")
@@ -38,7 +39,6 @@ class RotaryInput(threading.Thread):
             clk_val = GPIO.input(self.clk_pin)
             dat_val = GPIO.input(self.dat_pin)
             if clk_val != self.last_clk:
-                # The encoder has moved
                 if dat_val != clk_val:
                     self.ui.handle_rotary_event("rot_right")
                 else:
@@ -49,10 +49,19 @@ class RotaryInput(threading.Thread):
             btn_val = GPIO.input(self.btn_pin)
             btn_pressed = (btn_val == 0) if not self.invert_btn else (btn_val == 1)
 
-            # If you only want to detect "press" on transitions:
-            if btn_pressed and (self.last_btn != btn_val):
-                self.ui.handle_rotary_event("press")
+            now = time.time()
+
+            if btn_pressed and not self.btn_down_time:
+                self.btn_down_time = now  # button just pressed
+
+            if not btn_pressed and self.btn_down_time:
+                duration = now - self.btn_down_time
+                self.btn_down_time = None
+
+                if duration >= self.press_threshold:
+                    self.ui.handle_rotary_event("long_press")
+                else:
+                    self.ui.handle_rotary_event("short_press")
 
             self.last_btn = btn_val
-
             time.sleep(0.01)

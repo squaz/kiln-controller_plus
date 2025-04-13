@@ -4,43 +4,45 @@ import time
 import random
 import logging
 
-# Import your real config.py
+# Real config
 import config
 
-# Import the classes from your new files
+# Updated import paths
 from display_screen import KilnDisplay
-from menu_ui import MenuUI
-from rotary_input import RotaryInput
+from display_ui.menu_ui import MenuUI
+from display_ui.rotary_input import RotaryInput
+
+# This will run the screen registration logic
+import display_ui.screens
 
 def main():
     logging.basicConfig(level=config.log_level, format=config.log_format)
     log = logging.getLogger("test_menu_ui")
 
-    # 1) Initialize the KilnDisplay with config.DISPLAY_CONFIG
+    # Initialize the display
     display = KilnDisplay.get_instance(config.DISPLAY_CONFIG)
 
-    # 2) Create the MenuUI
+    # Set up the MenuUI
     ui = MenuUI(display)
 
-    # 3) Optionally start the rotary polling thread if enabled in config
+    # Start rotary input if enabled
     if config.enable_rotary_input:
         log.info("Rotary input is enabled. Starting rotary thread...")
-        rotary_thread = RotaryInput(ui)  # reads pins from config.ROTARY_CONFIG
+        rotary_thread = RotaryInput(ui)
         rotary_thread.start()
     else:
         log.info("Rotary input is disabled in config.py.")
 
-    log.info("Starting fake data loop. Rotate/press the knob (if enabled) to test UI states.")
+    log.info("Starting test loop. You can rotate or press the encoder to test the menu.")
 
     start_time = time.time()
     try:
         while True:
-            # Generate some random or semi-random data to simulate kiln
-            temperature = 25.0 + random.uniform(-2, 2)  # e.g. ~25 +/- 2
+            # Simulate kiln data
+            temperature = 25.0 + random.uniform(-2, 2)
             target = 30.0
             runtime = int(time.time() - start_time)
 
-            # Build a fake data dict
             data = {
                 "temperature": temperature,
                 "target": target,
@@ -49,10 +51,9 @@ def main():
                 "profile": "FAKE_PROFILE",
             }
 
-            # Send it to the MenuUI's observer interface
+            # Send the data to the UI
             ui.send(data)
 
-            # Wait a bit, then loop
             time.sleep(2.0)
 
     except KeyboardInterrupt:
