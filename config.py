@@ -217,7 +217,7 @@ thermocouple_offset=0
 temperature_average_samples = 10 
 
 # Thermocouple AC frequency filtering - set to True if in a 50Hz locale, else leave at False for 60Hz locale
-ac_freq_50hz = False
+ac_freq_50hz = True
 
 ########################################################################
 # Emergencies - or maybe not
@@ -370,4 +370,4 @@ try:
     sys.modules[__name__] = _ConfigProxy()
 
 except Exception as e:
-    print(f"[config] ⚠️ dynamic override failed: {e}")
+    print(f"[config] dynamic override failed: {e}")

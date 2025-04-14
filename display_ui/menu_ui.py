@@ -23,24 +23,48 @@ class MenuUI(BaseObserver):
     upon selection in the tab bar.
     """
 
-    def __init__(self, display):
-        """Initializes the MenuUI manager."""
+class MenuUI(BaseObserver):
+    """
+    Manages UI state, navigation, component lifecycle, and input routing.
+    Receives external data updates via the observer pattern.
+    Can trigger actions in the main controller via callbacks.
+    """
+
+    # --- MODIFIED __init__ signature and body ---
+    def __init__(self, display, action_callbacks=None):
+        """
+        Initializes the MenuUI manager.
+
+        Args:
+            display: The initialized KilnDisplay object.
+            action_callbacks (dict, optional): Dictionary mapping action names
+                                             ('start', 'pause', 'stop', 'resume') to
+                                             functions in the main controller.
+                                             Defaults to None.
+        """
         super().__init__(observer_type="ui")
         self.display = display
         self.kiln_data = {} # Stores the latest received kiln data
 
         # Build and store all *main* screen instances
+        # Pass self (ui_manager) to the build function now
         self.screens = build_screens(display, self)
 
         # Create TabBar instance
         self.tab_bar_component = TabBar(self) if TabBar else None
         if not self.tab_bar_component:
-            logger.error("TabBar component failed to initialize.")
+             logger.error("TabBar component failed to initialize.")
+
+        # --- Store action callbacks ---
+        self.action_callbacks = action_callbacks if isinstance(action_callbacks, dict) else {}
+        if not self.action_callbacks:
+            logger.warning("No action_callbacks provided to MenuUI. UI actions will only log.")
+        # --- End store action callbacks ---
 
         # --- Global State Initialization ---
-        self.current_screen_name = "overview" # Start at the overview screen
+        self.current_screen_name = "overview"
         self.current_screen = self.screens.get(self.current_screen_name)
-        if self.current_screen is None:
+        if self.current_screen is None: # Safety check
             raise ValueError(f"Default screen '{self.current_screen_name}' not found!")
 
         # Start Overview at Level 1 conceptually, others at 0
@@ -51,7 +75,10 @@ class MenuUI(BaseObserver):
 
         # Initial screen setup call and draw
         if hasattr(self.current_screen, "on_enter"):
-            self.current_screen.on_enter()
+            try:
+                 self.current_screen.on_enter()
+            except Exception as e:
+                 logger.error(f"Error during initial on_enter for {self.current_screen_name}: {e}", exc_info=True)
         self.redraw_current_view() # Ensure initial state is shown
         logger.info("MenuUI initialized.")
 
@@ -73,6 +100,8 @@ class MenuUI(BaseObserver):
 
     def send(self, data):
         """Receives data and forwards it to the active view's update method."""
+        logger.info(f"[MenuUI] Received data via send: State={data.get('state', 'N/A')}, Temp={data.get('temperature', 0.0):.1f}") 
+
         if not isinstance(data, dict):
             logger.warning(f"Received non-dict data: {type(data)}")
             return
@@ -338,6 +367,6 @@ class MenuUI(BaseObserver):
         try:
             self.display.show()
         except Exception as e:
-            logger.error(f"Error calling display.show(): {e}")
+             logger.exception(f"Error during draw processing: {e}")
 
 # --- END OF FILE: display_ui/menu_ui.py ---
