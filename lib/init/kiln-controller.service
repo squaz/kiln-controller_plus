@@ -2,7 +2,7 @@
 Description=kiln-controller
 
 [Service]
-ExecStart=/home/pi/kiln-controller/venv/bin/python /home/pi/kiln-controller/kiln-controller.py
+ExecStart=/home/red/kiln-controller_plus/venv_kiln/bin/python /home/red/kiln-controller_plus/kiln-controller.py
 
 [Install]
 WantedBy=multi-user.target
