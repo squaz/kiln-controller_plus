@@ -51,11 +51,15 @@ class OverviewScreen(UIScreen):
         logger.info(f"Handle Event: {event}, Lvl: {self.ui.current_screen_level}")
         if self.ui.current_screen_level != 1: return
 
+        state = self.ui.kiln_data.get("state").upper()
+
         if event == "rot_left":
-            # Go back to Level 0 (Tab Bar view)
-            logger.info("Overview L1: Rotary Left -> Returning to Tab Bar")
-            self.ui.pop_context_or_level() # Sets level to 0 and redraws
-            return None # Indicate event handled
+            if  state != "RUNNING" and state != "PAUSED":
+                # while running no Action is wanted otherwise
+                # Go back to Level 0 (Tab Bar view)
+                logger.info("Overview L1: Rotary Left -> Returning to Tab Bar")
+                self.ui.pop_context_or_level() # Sets level to 0 and redraws
+                return None # Indicate event handled
         elif event == "rot_right":
             # Request switch to Diagram screen, entering its submenu
             logger.info("Overview L1: Rotary Right -> Requesting switch and enter Diagram")

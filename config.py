@@ -143,9 +143,14 @@ sensor_time_wait = 2
 # well with the simulated oven. You must tune them to work well with 
 # your specific kiln. Note that the integral pid_ki is
 # inverted so that a smaller number means more integral action.
-pid_kp = 10   # Proportional 25,200,200
-pid_ki = 80   # Integral
-pid_kd = 220.83497910261562 # Derivative
+#pid_kp = 10   # Proportional 25,200,200
+#pid_ki = 80   # Integral
+#pid_kd = 220.83497910261562 # Derivative
+
+pid_kp = 4.867375341394935
+pid_ki = 24.68888710405184
+pid_kd = 146.22822140245694
+
 
 ########################################################################
 #
@@ -202,7 +207,7 @@ kiln_must_catch_up = True
 # or 100% off because the kiln is too hot. No integral builds up
 # outside the window. The bigger you make the window, the more
 # integral you will accumulate. This should be a positive integer.
-pid_control_window = 5 #degrees
+pid_control_window = 50 #degrees
 
 # thermocouple offset
 # If you put your thermocouple in ice water and it reads 36F, you can
