@@ -1,0 +1,208 @@
+#!/usr/bin/env sh
+
+SERVICE="kiln-controller.service"
+FILTER='(INFO|WARN|ERROR).* (oven|kiln-controller|gevent)'
+
+# directory of this script
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+OUTDIR="$SCRIPT_DIR/extracted_logs"
+
+usage() {
+    echo "Usage:"
+    echo "  $0                # all logs -> one CSV.gz per day in extracted_logs/"
+    echo "  $0 YYYY-MM-DD     # logs for that day -> extracted_logs/kiln-YYYY-MM-DD.csv.gz"
+    echo "  $0 DD.MM.YYYY     # same as above, European format"
+    exit 1
+}
+
+# Convert DD.MM.YYYY -> YYYY-MM-DD if needed
+normalize_date() {
+    input="$1"
+    if echo "$input" | grep -Eq '^[0-9]{2}\.[0-9]{2}\.[0-9]{4}$'; then
+        day=${input%%.*}
+        rest=${input#*.}
+        month=${rest%%.*}
+        year=${rest##*.}
+        echo "${year}-${month}-${day}"
+    else
+        # assume already YYYY-MM-DD
+        echo "$input"
+    fi
+}
+
+mkdir -p "$OUTDIR"
+
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    usage
+fi
+
+###############################################################################
+# NO ARGUMENT: split ALL logs into one CSV file per day
+###############################################################################
+if [ $# -eq 0 ]; then
+    echo "-----------------------------------------------------------------"
+    echo "| Writing ALL kiln-controller logs as per-day CSVs into:        |"
+    echo "|   $OUTDIR                                                     |"
+    echo "-----------------------------------------------------------------"
+
+    # Remove old uncompressed CSVs (keep .gz if any)
+    rm -f "$OUTDIR"/kiln-*.csv 2>/dev/null
+
+    journalctl -u "$SERVICE" --no-pager -o short-iso \
+        | grep -E "$FILTER" \
+        | awk -v outdir="$OUTDIR" '
+            BEGIN {
+                FS=" "
+            }
+            {
+                line = $0
+                journal_ts = $1
+
+                # Strip leading: "<ts> <host> <tag>: "
+                sub(/^[^ ]+ [^ ]+ [^:]+: /, "", line)
+
+                # Now line should look like:
+                # 2025-10-14 12:34:56,824 INFO oven: temp=...
+                n = split(line, a, " ")
+                if (n < 4) {
+                    next
+                }
+
+                app_date = a[1]
+                app_time = a[2]
+                app_ts   = app_date " " app_time
+                level    = a[3]
+                logger   = a[4]
+                sub(/:$/, "", logger)
+
+                msg = ""
+                for (i = 5; i <= n; i++) {
+                    if (i > 5) msg = msg " "
+                    msg = msg a[i]
+                }
+
+                # determine day from app_date (fallback to journal date)
+                day = app_date
+                if (day !~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) {
+                    # fallback: day from journal_ts
+                    split(journal_ts, jt, "T")
+                    day = jt[1]
+                }
+
+                file = outdir "/kiln-" day ".csv"
+
+                # escape double quotes in fields
+                gsub(/"/, "\"\"", journal_ts)
+                gsub(/"/, "\"\"", app_ts)
+                gsub(/"/, "\"\"", level)
+                gsub(/"/, "\"\"", logger)
+                gsub(/"/, "\"\"", msg)
+
+                # write header once per file
+                if (!(file in seen)) {
+                    print "journal_ts,app_ts,level,logger,message" > file
+                    seen[file] = 1
+                }
+
+                # write CSV row
+                print "\"" journal_ts "\"," \
+                      "\"" app_ts "\"," \
+                      "\"" level "\"," \
+                      "\"" logger "\"," \
+                      "\"" msg "\"" >> file
+            }
+          '
+
+    # Gzip each per-day CSV
+    for f in "$OUTDIR"/kiln-*.csv; do
+        [ -f "$f" ] && gzip -f "$f"
+    done
+
+    ls -la "$OUTDIR"/kiln-*.csv.gz 2>/dev/null || echo "No logs found."
+    exit 0
+fi
+
+###############################################################################
+# ONE ARGUMENT: logs for a specific day -> single CSV
+###############################################################################
+if [ $# -eq 1 ]; then
+    RAWDATE="$1"
+    DATE=$(normalize_date "$RAWDATE")
+
+    # Check that 'date' understands it
+    NEXTDAY=$(date -d "$DATE + 1 day" +%Y-%m-%d 2>/dev/null)
+    if [ -z "$NEXTDAY" ]; then
+        echo "Error: invalid date '$RAWDATE'"
+        usage
+    fi
+
+    OUTCSV="$OUTDIR/kiln-$DATE.csv"
+    OUTFILE="$OUTCSV.gz"
+
+    echo "-----------------------------------------------------------------"
+    echo "| Writing kiln-controller logs for $DATE as CSV to:              |"
+    echo "|   $OUTFILE                                                     |"
+    echo "-----------------------------------------------------------------"
+
+    rm -f "$OUTCSV" 2>/dev/null
+
+    journalctl -u "$SERVICE" --no-pager -o short-iso \
+        --since "$DATE 00:00:00" \
+        --until "$NEXTDAY 00:00:00" \
+        | grep -E "$FILTER" \
+        | awk -v outcsv="$OUTCSV" '
+            BEGIN {
+                FS=" "
+                print "journal_ts,app_ts,level,logger,message" > outcsv
+            }
+            {
+                line = $0
+                journal_ts = $1
+
+                sub(/^[^ ]+ [^ ]+ [^:]+: /, "", line)
+
+                n = split(line, a, " ")
+                if (n < 4) {
+                    next
+                }
+
+                app_date = a[1]
+                app_time = a[2]
+                app_ts   = app_date " " app_time
+                level    = a[3]
+                logger   = a[4]
+                sub(/:$/, "", logger)
+
+                msg = ""
+                for (i = 5; i <= n; i++) {
+                    if (i > 5) msg = msg " "
+                    msg = msg a[i]
+                }
+
+                gsub(/"/, "\"\"", journal_ts)
+                gsub(/"/, "\"\"", app_ts)
+                gsub(/"/, "\"\"", level)
+                gsub(/"/, "\"\"", logger)
+                gsub(/"/, "\"\"", msg)
+
+                print "\"" journal_ts "\"," \
+                      "\"" app_ts "\"," \
+                      "\"" level "\"," \
+                      "\"" logger "\"," \
+                      "\"" msg "\"" >> outcsv
+            }
+          '
+
+    if [ -f "$OUTCSV" ]; then
+        gzip -f "$OUTCSV"
+        ls -la "$OUTFILE"
+    else
+        echo "No logs found for $DATE"
+    fi
+    exit 0
+fi
+
+###############################################################################
+# More than one argument -> show help
+###############################################################################
+usage
